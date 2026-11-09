@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>SpritRadar</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{--blue:#1769e0;--ink:#182230;--muted:#667085;--surface:#fff;--bg:#f3f6fb;--green:#137a45}
+*{box-sizing:border-box}body{margin:0;font-family:Roboto,"Arial",sans-serif;color:var(--ink);background:var(--bg)}
+#map{position:absolute;inset:0 0 270px;z-index:1;background:#e9eef3}
+.top{position:absolute;z-index:500;top:14px;left:14px;right:14px;display:flex;gap:10px;align-items:center}
+.brand{background:#fff;border-radius:18px;padding:11px 14px;box-shadow:0 3px 16px #18223022;font-weight:800;letter-spacing:-.4px}
+.brand span{color:var(--blue)}.search{flex:1;background:#fff;border-radius:18px;padding:12px 15px;box-shadow:0 3px 16px #18223022;font-size:13px;color:var(--muted)}
+.loc{border:0;background:#fff;border-radius:16px;width:46px;height:46px;font-size:20px;box-shadow:0 3px 16px #18223022}
+.panel{position:absolute;z-index:500;bottom:0;left:0;right:0;background:#fff;border-radius:24px 24px 0 0;padding:14px 16px max(14px,env(safe-area-inset-bottom));box-shadow:0 -5px 24px #18223018;max-height:58vh;display:flex;flex-direction:column}
+.handle{width:38px;height:4px;border-radius:9px;background:#d7dce3;margin:0 auto 12px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+h1{font-size:19px;margin:0;font-weight:800}.sub{font-size:12px;color:var(--muted);margin-top:4px}
+.fuels{display:flex;gap:7px;margin:14px 0 10px}
+.fuel{border:1px solid #e3e8ef;background:#f7f9fc;color:#475467;padding:9px 14px;border-radius:22px;font-weight:700;font-size:13px}
+.fuel.active{background:#e8f0ff;border-color:#b7d0ff;color:#145bc4}
+.meta{font-size:12px;color:var(--muted);font-weight:600}
+#stations{overflow:auto;min-height:70px}
+.station{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid #edf0f4}
+.logo{width:42px;height:42px;border-radius:13px;background:#edf3ff;color:#1769e0;display:grid;place-items:center;font-weight:900}
+.info{flex:1;min-width:0}.name{font-weight:750;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.address{font-size:12px;color:var(--muted);margin-top:4px}
+.price{text-align:right;font-weight:850;font-size:18px;color:var(--green);white-space:nowrap}.distance{font-size:11px;color:var(--muted);font-weight:500;margin-top:3px}
+.nav{border:0;border-radius:13px;background:#edf3ff;color:#145bc4;padding:10px;font-size:18px}
+.status{font-size:12px;color:var(--muted);padding:10px 2px}
+.pin{background:#fff;border:2px solid #fff;border-radius:12px;padding:5px 7px;box-shadow:0 2px 8px #0004;font-weight:800;font-size:12px;color:#137a45;white-space:nowrap}
+.leaflet-div-icon{background:transparent;border:0}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div class="top"><div class="brand">⛽ <span>Sprit</span>Radar</div><div class="search">Tankstellen in deiner Nähe</div><button class="loc" onclick="locate()">◎</button></div>
+<section class="panel">
+ <div class="handle"></div>
+ <div class="row"><div><h1>Günstig tanken</h1><div class="sub" id="summary">Standort wird gesucht …</div></div><div class="meta" id="count"></div></div>
+ <div class="fuels">
+  <button class="fuel" data-fuel="diesel" onclick="setFuel('diesel')">Diesel</button>
+  <button class="fuel active" data-fuel="e5" onclick="setFuel('e5')">Super E5</button>
+  <button class="fuel" data-fuel="e10" onclick="setFuel('e10')">Super E10</button>
+ </div>
+ <div id="stations"><div class="status">Bitte Standort freigeben, um aktuelle Preise zu laden.</div></div>
+ <div class="status">Preisdaten: MTS-K über Tankerkönig · CC BY 4.0 · TankPuls</div>
+</section>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+let map, markers=[], current={lat:53.5511,lng:9.9937}, fuel='e5', radius=10, stations=[];
+function initMap(){
+ map=L.map('map',{zoomControl:false}).setView([current.lat,current.lng],13);
+ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
+ L.control.zoom({position:'bottomright'}).addTo(map);
+}
+function locate(){
+ document.getElementById('summary').textContent='Standort wird ermittelt …';
+ if(!navigator.geolocation){loadAt(current.lat,current.lng);return}
+ navigator.geolocation.getCurrentPosition(p=>{current={lat:p.coords.latitude,lng:p.coords.longitude};map.setView([current.lat,current.lng],14);loadAt(current.lat,current.lng)},()=>{document.getElementById('summary').textContent='Standort nicht freigegeben – zeige Hamburg als Startpunkt';loadAt(current.lat,current.lng)},{enableHighAccuracy:true,timeout:12000});
+}
+function loadAt(lat,lng){document.getElementById('stations').innerHTML='<div class="status">Aktuelle Preise werden geladen …</div>';Android.searchStations(lat,lng,radius,fuel)}
+function setFuel(f){fuel=f;document.querySelectorAll('.fuel').forEach(b=>b.classList.toggle('active',b.dataset.fuel===f));loadAt(current.lat,current.lng)}
+function price(s){return s.priceCents==null?'—':(s.priceCents/1000).toFixed(3).replace('.',',')+' €'}
+function distance(s){let d=s.distanceM??0;return d>=1000?(d/1000).toFixed(1).replace('.',',')+' km':Math.round(d)+' m'}
+window.onStationsResponse=function(raw){
+ const data=JSON.parse(raw);stations=data.items||[];
+ stations.sort((a,b)=>(a.priceCents??999999)-(b.priceCents??999999));
+ document.getElementById('summary').textContent=stations.length+' Tankstellen im Umkreis von '+radius+' km';
+ document.getElementById('count').textContent=stations.length+' Treffer';
+ const list=document.getElementById('stations');list.innerHTML='';
+ if(!stations.length){list.innerHTML='<div class="status">Keine Tankstellen mit gemeldetem Preis gefunden.</div>';clearMarkers();return}
+ stations.forEach((s,i)=>{
+  const el=document.createElement('div');el.className='station';
+  const addr=[s.street,s.postcode,s.city].filter(Boolean).join(', ');
+  el.innerHTML='<div class="logo">⛽</div><div class="info"><div class="name"></div><div class="address"></div></div><div><div class="price"></div><div class="distance"></div></div><button class="nav" aria-label="Navigation">➤</button>';
+  el.querySelector('.name').textContent=s.name||s.brandName||'Tankstelle';
+  el.querySelector('.address').textContent=addr;
+  el.querySelector('.price').textContent=price(s);
+  el.querySelector('.distance').textContent=distance(s);
+  el.querySelector('.nav').onclick=()=>Android.openNavigation(s.lat,s.lng,s.name||'Tankstelle');
+  list.appendChild(el);
+ });
+ clearMarkers();
+ stations.forEach(s=>{
+  if(typeof s.lat!=='number'||typeof s.lng!=='number')return;
+  const icon=L.divIcon({className:'',html:'<div class="pin">'+price(s)+'</div>',iconSize:[70,30],iconAnchor:[35,15]});
+  const m=L.marker([s.lat,s.lng],{icon}).addTo(map);
+  m.bindPopup('<b>'+escapeHtml(s.name||'Tankstelle')+'</b><br>'+price(s)+' / Liter');
+  markers.push(m);
+ });
+};
+window.onStationsError=function(msg){document.getElementById('stations').innerHTML='<div class="status">Preise konnten nicht geladen werden: '+escapeHtml(msg)+'</div>';document.getElementById('summary').textContent='Verbindung fehlgeschlagen'};
+function clearMarkers(){markers.forEach(m=>map.removeLayer(m));markers=[]}
+function escapeHtml(v){return String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+initMap();locate();
+</script>
+</body></html>
